@@ -15,7 +15,7 @@ import (
 const cliDateFormat = "2006-01-02"
 
 var (
-	app = kingpin.New("strava-bulk-edit", "Edit multiple Strava activities at once").Version("0.0.1").Author("Samuel Meuli")
+	app = kingpin.New("strava-bulk-edit", "Edit multiple Strava activities at once").Version("1.0.0").Author("Samuel Meuli")
 
 	// Flags
 	all  = app.Flag("all", "Update all Strava activities").Bool()
