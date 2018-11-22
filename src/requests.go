@@ -22,7 +22,7 @@ const stravaDateFormat = "2006-01-02T15:04:05+0000"
 var client *http.Client
 var csrfToken string
 
-func update(email string, password string, fromDate time.Time, toDate time.Time, update Activity) {
+func update(email string, password string, fromDate time.Time, toDate time.Time, update string) {
 	// Set up HTTP client which stores cookies and does not allow redirects
 	cookieJar, _ := cookiejar.New(nil)
 	client = &http.Client{
@@ -143,13 +143,13 @@ func getActivities(fromDate time.Time, toDate time.Time) []Activity {
 	return activities
 }
 
-func updateActivities(activities []Activity, update Activity) {
+func updateActivities(activities []Activity, update string) {
 	// Loop over activities and update the specified attribute
 	for index, activity := range activities {
 		// Set up request
 		updateUrl := fmt.Sprintf("%s/%d", activitiesUrl, activity.Id)
-		body, _ := json.Marshal(update)
-		req, _ := http.NewRequest("PUT", updateUrl, bytes.NewReader(body))
+		body := []byte(update)
+		req, _ := http.NewRequest("PUT", updateUrl, bytes.NewBuffer(body))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Add("X-CSRF-Token", csrfToken)
 		req.Header.Add("X-Requested-With", "XMLHttpRequest")

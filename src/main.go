@@ -44,18 +44,18 @@ func main() {
 	email, password := promptCredentials()
 
 	// Update the specified attribute
-	var activityUpdate Activity
+	var activityUpdate string
 	switch cmd {
 	case title.FullCommand():
-		activityUpdate = Activity{Title: *titleArg}
+		activityUpdate = fmt.Sprintf(`{"name": %q}`, *titleArg)
 	case description.FullCommand():
-		activityUpdate = Activity{Description: *descriptionArg}
+		activityUpdate = fmt.Sprintf(`{"description": %q}`, *descriptionArg)
 	case commute.FullCommand():
-		activityUpdate = Activity{Commute: *commuteArg}
+		activityUpdate = fmt.Sprintf(`{"commute": %t}`, *commuteArg)
 	case sport.FullCommand():
-		activityUpdate = Activity{Sport: *sportArg}
+		activityUpdate = fmt.Sprintf(`{"type": %q}`, *sportArg)
 	case visibility.FullCommand():
-		activityUpdate = Activity{Visibility: *visibilityArg}
+		activityUpdate = fmt.Sprintf(`{"visibility": %q}`, *visibilityArg)
 	default:
 		log.Fatal("No command specified")
 	}
