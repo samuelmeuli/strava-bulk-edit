@@ -3,12 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"golang.org/x/crypto/ssh/terminal"
-	"gopkg.in/alecthomas/kingpin.v2"
 	"log"
 	"os"
 	"strings"
 	"syscall"
+
+	"golang.org/x/crypto/ssh/terminal"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 var valuesSport = []string{"AlpineSki", "BackcountrySki", "Canoeing", "Crossfit", "EBikeRide", "Elliptical", "Handcycle", "Hike", "IceSkate", "InlineSkate", "Kayaking", "Kitesurf", "NordicSki", "Ride", "RockClimbing", "RollerSki", "Rowing", "Run", "Snowboard", "Snowshoe", "StairStepper", "StandUpPaddling", "Surfing", "Swim", "VirtualRide", "VirtualRun", "Walk", "WeightTraining", "Wheelchair", "Windsurf", "Workout", "Yoga"}
@@ -23,7 +24,7 @@ var (
 	to   = app.Flag("to", "Update all Strava activities before the specified date").String()
 	// TODO make exactly one flag required, make all and from/to flags mutually exclusive
 
-	// Args
+	// Commands and args
 	title          = app.Command("title", "Update the activities' titles")
 	titleArg       = title.Arg("title", "New title for the activities").Required().String()
 	description    = app.Command("description", "Update the activities' descriptions")
@@ -37,31 +38,27 @@ var (
 )
 
 func main() {
+	// Parse and validate args
 	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
+
+	// Ask for Strava credentials
 	email, password := promptCredentials()
 
+	// Update the specified attribute
 	switch cmd {
 	case title.FullCommand():
-		fmt.Println("Update title")
-		fmt.Println(*titleArg)
+		update(email, password, Activity{Title: *titleArg})
 	case description.FullCommand():
-		fmt.Println("Update description")
-		fmt.Println(*descriptionArg)
+		update(email, password, Activity{Description: *descriptionArg})
 	case commute.FullCommand():
-		fmt.Println("Update commute")
-		fmt.Println(*commuteArg)
+		update(email, password, Activity{Commute: *commuteArg})
 	case sport.FullCommand():
-		fmt.Println("Update sport")
-		fmt.Println(*sportArg)
+		update(email, password, Activity{Sport: *sportArg})
 	case visibility.FullCommand():
-		fmt.Println("Update visibility")
-		fmt.Println(*visibilityArg)
+		update(email, password, Activity{Visibility: *visibilityArg})
 	default:
 		log.Fatal("No command specified")
 	}
-
-	fmt.Println(email)
-	fmt.Println(password)
 }
 
 func promptCredentials() (string, string) {
