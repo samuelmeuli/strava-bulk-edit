@@ -3,3 +3,6 @@
 
 # Logs
 *.log
+
+# GoReleaser
+dist/
