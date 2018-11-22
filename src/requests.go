@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"time"
 )
 
 const baseUrl = "https://www.strava.com"
@@ -16,10 +17,12 @@ const loginUrl = baseUrl + "/login"
 const sessionUrl = baseUrl + "/session"
 const activitiesUrl = baseUrl + "/athlete/training_activities"
 
+const stravaDateFormat = "2006-01-02T15:04:05+0000"
+
 var client *http.Client
 var csrfToken string
 
-func update(email string, password string, update Activity) {
+func update(email string, password string, fromDate time.Time, toDate time.Time, update Activity) {
 	// Set up HTTP client which stores cookies and does not allow redirects
 	cookieJar, _ := cookiejar.New(nil)
 	client = &http.Client{
@@ -34,13 +37,15 @@ func update(email string, password string, update Activity) {
 	logIn(email, password)
 
 	// Fetch list of activities
-	activities := getActivities()
+	activities := getActivities(fromDate, toDate)
 
 	// Update activities with the new value
 	updateActivities(activities, update)
 }
 
 func getCsrfToken() string {
+	log.Println("Logging into Strava...")
+
 	// Fetch login page
 	res, err := client.Get(loginUrl)
 	if err != nil {
@@ -88,36 +93,59 @@ func logIn(email string, password string) {
 	}
 }
 
-func getActivities() []Activity {
-	// TODO fetch more than one page
-	// TODO only fetch specified date range
+func getActivities(fromDate time.Time, toDate time.Time) []Activity {
+	log.Println("Fetching activity list...")
+	var activities []Activity
+	page := 1
 
-	// Set up request
-	req, _ := http.NewRequest("GET", activitiesUrl, nil)
-	req.Header.Add("X-CSRF-Token", csrfToken)
-	req.Header.Add("X-Requested-With", "XMLHttpRequest")
+	for {
+		// Set up request
+		req, _ := http.NewRequest("GET", fmt.Sprintf("%s?page=%d", activitiesUrl, page), nil)
+		req.Header.Add("X-CSRF-Token", csrfToken)
+		req.Header.Add("X-Requested-With", "XMLHttpRequest")
 
-	// Send request
-	res, err := client.Do(req)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode == http.StatusMovedPermanently {
-		log.Fatal("Incorrect Strava login credentials")
-	}
-	if res.StatusCode != http.StatusOK {
-		log.Fatalf("Request to %q returned status code %d", activitiesUrl, res.StatusCode)
-	}
+		// Send request
+		res, err := client.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		if res.StatusCode == http.StatusMovedPermanently {
+			log.Fatal("Incorrect Strava login credentials")
+		}
+		if res.StatusCode != http.StatusOK {
+			log.Fatalf("Request to %q returned status code %d", activitiesUrl, res.StatusCode)
+		}
 
-	activityList := new(ActivityList)
-	json.NewDecoder(res.Body).Decode(activityList)
-	return activityList.Activities
+		// Extract and save activities
+		listResponse := new(ActivityListResponse)
+		json.NewDecoder(res.Body).Decode(listResponse)
+		for _, activity := range listResponse.Activities {
+			activityDate, _ := time.Parse(stravaDateFormat, activity.Date)
+			// Stop fetching if activity is before --from flag
+			if activityDate.Before(fromDate) {
+				break
+			}
+			// Save activity if it is between --from and --to flags
+			if activityDate.Before(toDate) {
+				activities = append(activities, activity)
+			}
+		}
+
+		// Determine whether there are more pages to fetch
+		if listResponse.Total-(listResponse.Page*listResponse.PerPage) <= 0 {
+			break
+		} else {
+			page += 1
+		}
+
+		res.Body.Close()
+	}
+	return activities
 }
 
 func updateActivities(activities []Activity, update Activity) {
 	// Loop over activities and update the specified attribute
-	for _, activity := range activities {
+	for index, activity := range activities {
 		// Set up request
 		updateUrl := fmt.Sprintf("%s/%d", activitiesUrl, activity.Id)
 		body, _ := json.Marshal(update)
@@ -135,5 +163,7 @@ func updateActivities(activities []Activity, update Activity) {
 		if res.StatusCode != http.StatusOK {
 			log.Fatalf("Request to %q returned status code %d", updateUrl, res.StatusCode)
 		}
+		log.Printf("Updated %d activities", index+1)
 	}
+	log.Println("Finished updating")
 }

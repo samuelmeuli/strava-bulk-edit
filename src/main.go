@@ -3,17 +3,16 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"log"
-	"os"
-	"regexp"
-	"strings"
-	"syscall"
-
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"log"
+	"os"
+	"strings"
+	"syscall"
+	"time"
 )
 
-const dateRegex = `^\d{4}-\d{2}-\d{2}$`
+const cliDateFormat = "2006-01-02"
 
 var (
 	app = kingpin.New("strava-bulk-edit", "Edit multiple Strava activities at once").Version("0.0.1").Author("Samuel Meuli")
@@ -39,26 +38,29 @@ var (
 func main() {
 	// Parse and validate args
 	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
-	validateFlags()
+	fromDate, toDate := validateFlags()
 
 	// Ask for Strava credentials
 	email, password := promptCredentials()
 
 	// Update the specified attribute
+	var activityUpdate Activity
 	switch cmd {
 	case title.FullCommand():
-		update(email, password, Activity{Title: *titleArg})
+		activityUpdate = Activity{Title: *titleArg}
 	case description.FullCommand():
-		update(email, password, Activity{Description: *descriptionArg})
+		activityUpdate = Activity{Description: *descriptionArg}
 	case commute.FullCommand():
-		update(email, password, Activity{Commute: *commuteArg})
+		activityUpdate = Activity{Commute: *commuteArg}
 	case sport.FullCommand():
-		update(email, password, Activity{Sport: *sportArg})
+		activityUpdate = Activity{Sport: *sportArg}
 	case visibility.FullCommand():
-		update(email, password, Activity{Visibility: *visibilityArg})
+		activityUpdate = Activity{Visibility: *visibilityArg}
 	default:
 		log.Fatal("No command specified")
 	}
+
+	update(email, password, fromDate, toDate, activityUpdate)
 }
 
 func promptCredentials() (string, string) {
@@ -80,7 +82,7 @@ func promptCredentials() (string, string) {
 	return strings.TrimSpace(email), strings.TrimSpace(password)
 }
 
-func validateFlags() {
+func validateFlags() (time.Time, time.Time) {
 	// Validate that only compatible flags are used
 	allDefined := *all == true
 	fromDefined := *from != ""
@@ -93,16 +95,24 @@ func validateFlags() {
 	}
 
 	// Validate date format
+	fromDate := time.Date(0, time.January, 1, 0, 0, 0, 0, time.UTC)
+	var fromErr error
+	toDate := time.Date(9999, time.January, 1, 0, 0, 0, 0, time.UTC)
+	var toErr error
 	if fromDefined {
-		match, _ := regexp.MatchString(dateRegex, *from)
-		if !match {
-			log.Fatal("Invalid --from date. Please use the format YYYY-MM-DD")
+		fromDate, fromErr = time.Parse(cliDateFormat, *from)
+		if fromErr != nil {
+			log.Fatal("Could not parse start date (must be formatted as YYYY-MM-DD)")
 		}
 	}
 	if toDefined {
-		match, _ := regexp.MatchString(dateRegex, *to)
-		if !match {
-			log.Fatal("Invalid --to date. Please use the format YYYY-MM-DD")
+		toDate, toErr = time.Parse(cliDateFormat, *to)
+		if toErr != nil {
+			log.Fatal("Could not parse end date (must be formatted as YYYY-MM-DD)")
 		}
 	}
+	if fromDefined && toDefined && fromDate.After(toDate) {
+		log.Fatal("Start date must be before end date")
+	}
+	return fromDate, toDate
 }
