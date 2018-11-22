@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 	"syscall"
 
@@ -12,14 +13,15 @@ import (
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
+const dateRegex = `^\d{4}-\d{2}-\d{2}$`
+
 var (
 	app = kingpin.New("strava-bulk-edit", "Edit multiple Strava activities at once").Version("0.0.1").Author("Samuel Meuli")
 
 	// Flags
 	all  = app.Flag("all", "Update all Strava activities").Bool()
-	from = app.Flag("from", "Update all Strava activities after the specified date").String()
-	to   = app.Flag("to", "Update all Strava activities before the specified date").String()
-	// TODO make exactly one flag required, make all and from/to flags mutually exclusive
+	from = app.Flag("from", "Update all Strava activities after the specified date. Date format: YYYY-MM-DD").String()
+	to   = app.Flag("to", "Update all Strava activities before the specified date. Date format: YYYY-MM-DD").String()
 
 	// Commands and args
 	title          = app.Command("title", "Update the activities' titles")
@@ -37,6 +39,7 @@ var (
 func main() {
 	// Parse and validate args
 	cmd := kingpin.MustParse(app.Parse(os.Args[1:]))
+	validateFlags()
 
 	// Ask for Strava credentials
 	email, password := promptCredentials()
@@ -75,4 +78,31 @@ func promptCredentials() (string, string) {
 	fmt.Println()
 
 	return strings.TrimSpace(email), strings.TrimSpace(password)
+}
+
+func validateFlags() {
+	// Validate that only compatible flags are used
+	allDefined := *all == true
+	fromDefined := *from != ""
+	toDefined := *to != ""
+	if !allDefined && !fromDefined && !toDefined {
+		log.Fatal("Please use a flag (--all, --from, and/or --to) to specify the activities to update")
+	}
+	if allDefined && (fromDefined || toDefined) {
+		log.Fatal("The --all flag cannot be used together with the --from and --to flags")
+	}
+
+	// Validate date format
+	if fromDefined {
+		match, _ := regexp.MatchString(dateRegex, *from)
+		if !match {
+			log.Fatal("Invalid --from date. Please use the format YYYY-MM-DD")
+		}
+	}
+	if toDefined {
+		match, _ := regexp.MatchString(dateRegex, *to)
+		if !match {
+			log.Fatal("Invalid --to date. Please use the format YYYY-MM-DD")
+		}
+	}
 }
